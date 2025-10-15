@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Zombie Math Run</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- <link rel="stylesheet" href="stactic/styles.css" /> -->
+<style>
+:root {
+  --bg: #0c0f14;
+  --card: #161b22;
+  --text: #e6edf3;
+  --accent: #2ea043;
+  --warn: #f85149;
+  --muted: #8b949e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background: linear-gradient(180deg, #0c0f14, #0b1324 40%, #0c0f14);
+  color: var(--text);
+}
+.container {
+  max-width: 880px;
+  margin: 32px auto;
+  padding: 16px;
+}
+h1, h2 { margin: 8px 0 16px; }
+.status, .question, .log {
+  background: var(--card);
+  border: 1px solid #232a33;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+.status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; }
+.stat span { color: var(--muted); }
+.stat strong { color: var(--text); }
+.question #questionText {
+  font-size: 1.5rem;
+  margin-bottom: 12px;
+}
+.answerRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+input[type="number"] {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #2d3642;
+  background: #0f141b;
+  color: var(--text);
+}
+button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #238636;
+  color: white;
+  cursor: pointer;
+}
+button:disabled { background: #2d3642; cursor: not-allowed; }
+.controls { display: flex; gap: 8px; }
+#resetBtn { background: #444c56; }
+.log #log { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.correct { color: var(--accent); }
+.incorrect { color: var(--warn); }
+
+
+.game-visual {
+  position: relative;
+  height: 180px;
+  margin: 24px 0;
+  background: linear-gradient(to top, #12161f, #0c0f14);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.man {
+  position: absolute;
+  bottom: 0;
+  width: 80px;
+  height: 120px;
+  background-size: cover;
+  transition: left 0.8s ease-in-out;
+}
+
+ .zombie {
+  position: absolute;
+  bottom: 0;
+  width: 100px;
+  height: 120px;
+  background-size: cover;
+  transition: left 0.8s ease-in-out;
+}
+
+/* Replace these URLs with your actual sprites */
+.man {
+  left: 35px;
+  
+
+}
+.zombie {
+  left: calc(100% - 120px);
+  
+  transform: scaleX(-1);
+}
+
+.zombie.attack {
+  animation: attack 1s forwards ease-in;
+}
+
+
+.zombie.attack {
+  animation: bite 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes bite {
+  0% { transform: scale(1) translateX(0); }
+  50% { transform: scale(1.1) translateX(-10px); }
+  100% { transform: scale(1) translateX(0); }
+}
+
+.man.dead {
+  opacity: 0.3;
+  transform: rotate(-25deg);
+  transition: all 0.8s ease;
+}
+
+
+@keyframes attack {
+  0% { transform: scale(1) scaleX(-1); }
+  50% { transform: scale(1.2) scaleX(-1); }
+  100% { transform: scale(0.8) translateX(-30px) scaleX(-1); opacity: 0; }
+}
+
+
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Zombie Math Run</h1>
+     <div class="game-visual">
+  <div class="man">
+  <img src="images/man.jpeg" alt="Man" style="width:120px; height:130px; display:inline;">
+</div>
+  <div class="zombie">
+ <img src="images/zombai.png" alt="Man" style="width:100px; height:130px; display:inline;">
+
+  </div>
+</div>
+
+    <section class="status">
+      <div class="stat"><span>User distance:</span> <strong id="userDistance">-</strong></div>
+      <div class="stat"><span>Computer distance:</span> <strong id="compDistance">-</strong></div>
+      <div class="stat"><span>User correct:</span> <strong id="userCorrect">-</strong></div>
+      <div class="stat"><span>Computer correct:</span> <strong id="compCorrect">-</strong></div>
+      <div class="stat"><span>Questions answered:</span> <strong id="userCount">-</strong>/10</div>
+      <div class="stat"><span>Status:</span> <strong id="gameStatus">-</strong></div>
+    </section>
+
+    <section class="question">
+      <div id="questionText">Press Start to begin</div>
+      <div class="answerRow">
+        <input id="answerInput" type="number" placeholder="Enter answer" />
+        <button id="submitBtn" disabled>Submit</button>
+      </div>
+      <div class="controls">
+        <button id="startBtn">Start Game</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+    </section>
+
+    <section class="log">
+      <h2>Turn Log</h2>
+      <div id="log"></div>
+    </section>
+  </div>
+
+
+  <!-- <script src="stactic/app.js"></script> -->
+<script>
+// app.js
+const API_BASE = "http://127.0.0.1:8000";
+
+const startBtn = document.getElementById("startBtn");
+const resetBtn = document.getElementById("resetBtn");
+const submitBtn = document.getElementById("submitBtn");
+const questionText = document.getElementById("questionText");
+const answerInput = document.getElementById("answerInput");
+
+const userDistance = document.getElementById("userDistance");
+const compDistance = document.getElementById("compDistance");
+const userCorrect = document.getElementById("userCorrect");
+const compCorrect = document.getElementById("compCorrect");
+const userCount = document.getElementById("userCount");
+const gameStatus = document.getElementById("gameStatus");
+const logDiv = document.getElementById("log");
+
+const zombieEl = document.querySelector(".zombie");
+const manEl = document.querySelector(".man");
+
+function updateZombiePosition(distance) {
+  // distance = user_distance (e.g., 10 → far, 3 → very close)
+  const maxDistance = 10;
+  const minLeft = 120; // px away from man
+  const maxLeft = 720; // depends on your visual width (tune if needed)
+
+  // Map distance (10 → far right, 3 → near left)
+  const ratio = Math.max(0, Math.min(1, (distance - 3) / (maxDistance - 3)));
+  const zombieLeft = minLeft + ratio * (maxLeft - minLeft);
+
+  zombieEl.style.left = `${zombieLeft}px`;
+
+  // When very close (distance ≤ 3) → attack animation
+  if (distance <= 3) {
+    zombieEl.classList.add("attack");
+  } else {
+    zombieEl.classList.remove("attack");
+  }
+}
+
+function resetPositions() {
+  zombieEl.style.left = "calc(100% - 120px)";
+  zombieEl.classList.remove("attack");
+}
+
+
+let gameId = null;
+
+function renderState(state) {
+  userDistance.textContent = state.user_distance;
+  compDistance.textContent = state.comp_distance;
+  userCorrect.textContent = state.user_correct;
+  compCorrect.textContent = state.comp_correct;
+  userCount.textContent = state.user_questions_asked;
+
+  updateZombiePosition(state.user_distance);
+
+if (state.status === "lost") {
+  zombieEl.classList.add("attack");
+}
+
+
+    gameStatus.textContent = state.status;
+
+  if (state.status === "playing") {
+    submitBtn.disabled = false;
+    answerInput.disabled = false;
+  } else {
+    submitBtn.disabled = true;
+    answerInput.disabled = true;
+  }
+
+  if (state.question && state.status === "playing") {
+    questionText.textContent = state.question.text;
+  } else if (state.status !== "playing") {
+    if (state.status === "won") {
+      questionText.textContent = "🎉 Game Over: YOU WON!";
+      zombieEl.classList.remove("attack");
+      manEl.classList.remove("dead");
+    } else if (state.status === "lost") {
+      // 🧟 Trigger zombie attack first
+      questionText.textContent = "💀 The zombie is attacking!";
+      zombieEl.classList.add("attack");
+
+      // Optional: make the man look dead or fade away
+      manEl.classList.add("dead");
+
+      // Make zombie move closer to the man for attack
+      zombieEl.style.left = "150px"; // Adjust as needed to overlap the man
+
+      // After delay, show Game Over message
+      setTimeout(() => {
+        questionText.textContent = "💀 Game Over: YOU LOST!";
+        zombieEl.classList.remove("attack");
+      }, 2000); // 2 seconds for attack animation
+    }
+  }
+
+  const lines = [];
+  if (state.last_user) {
+    lines.push(
+      `User: ${state.last_user.question} = ${state.last_user.provided} ` +
+      `-> ${state.last_user.correct ? "correct" : "incorrect"} (answer: ${state.last_user.correct_answer}), ` +
+      `user distance: ${state.last_user.user_distance}`
+    );
+  }
+
+  if (state.last_comp) {
+    lines.push(
+      `Computer: ${state.last_comp.question} -> ${state.last_comp.correct ? "correct" : "incorrect"} ` +
+      `(answer: ${state.last_comp.correct_answer}), comp distance: ${state.last_comp.comp_distance}`
+    );
+  }
+  if (lines.length) {
+    const entry = document.createElement("div");
+    entry.textContent = lines.join(" | ");
+    entry.className = (state.last_user && state.last_user.correct) ? "correct" : "incorrect";
+    logDiv.prepend(entry);
+  }
+}
+
+startBtn.addEventListener("click", async () => {
+  try {
+    const res = await fetch(`${API_BASE}/start`, { method: "POST" });
+    const data = await res.json();
+    gameId = data.game_id;
+    renderState(data.state);
+    answerInput.value = "";
+    answerInput.focus();
+  } catch (e) {
+    alert("Failed to start game");
+  }
+});
+
+resetBtn.addEventListener("click", () => {
+  gameId = null;
+  questionText.textContent = "Press Start to begin";
+  submitBtn.disabled = true;
+  answerInput.disabled = true;
+  userDistance.textContent = "-";
+  compDistance.textContent = "-";
+  userCorrect.textContent = "-";
+  compCorrect.textContent = "-";
+  userCount.textContent = "-";
+  gameStatus.textContent = "-";
+  logDiv.innerHTML = "";
+
+  resetPositions();
+});
+
+submitBtn.addEventListener("click", async () => {
+  if (!gameId) return;
+  const answer = answerInput.value;
+  if (answer.trim() === "") return;
+
+  try {
+    const res = await fetch(`${API_BASE}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game_id: gameId, answer }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert("Game is over");
+      return;
+    }
+    renderState(data.state);
+    answerInput.value = "";
+    answerInput.focus();
+  } catch {
+    alert("Failed to submit answer");
+  }
+});
+
+
+</script>
+
+</body>
+</html>
